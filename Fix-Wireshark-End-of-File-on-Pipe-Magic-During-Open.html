@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Fix "End of File on Pipe Magic During Open" - Wireshark with EVE-NG on GCP</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background-color: #f9f9f9;
+            color: #333;
+            line-height: 1.6;
+        }
+        h1 {
+            font-size: 28px;
+            margin-bottom: 20px;
+        }
+        h2 {
+            font-size: 22px;
+            margin-top: 30px;
+            margin-bottom: 10px;
+        }
+        .error-message {
+            background-color: #ffe5e5;
+            border: 1px solid #ff8c8c;
+            padding: 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            color: #b30000;
+        }
+        pre {
+            background-color: #eee;
+            padding: 12px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .step {
+            margin-bottom: 25px;
+        }
+        .note {
+            font-size: 14px;
+            color: #555;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Fix Wireshark "End of File on Pipe Magic During Open" Error (EVE-NG on GCP)</h1>
+
+    <div class="error-message">
+        ⚠️ Error: "End of file on pipe magic during open"
+    </div>
+
+    <p>This error usually happens when capturing packets with Wireshark from an EVE-NG instance hosted on Google Cloud Platform (GCP), due to untrusted SSH connections. Follow the steps below to accept the SSH host key and resolve the issue.</p>
+
+    <div class="step">
+        <h2>Step A: Accept the SSH Host Key</h2>
+        <p>Open <strong>PowerShell</strong> or <strong>Command Prompt</strong> and run the following command to establish an SSH connection and accept the host key:</p>
+        <pre>&amp; "C:\Program Files\EVE-NG\plink.exe" root@&lt;GCP-IP&gt;</pre>
+        <p>When prompted, type <strong>yes</strong> and press <strong>Enter</strong>.</p>
+    </div>
+
+    <div class="step">
+        <h2>Step B: Verify SSH Connection with tcpdump</h2>
+        <p>Test the connection and confirm that packet capture works by running:</p>
+        <pre>&amp; "C:\Program Files\EVE-NG\plink.exe" -ssh -pw eve root@&lt;GCP-IP&gt; "tcpdump -i pnet0"</pre>
+        <p>Once you see live packet capture output, press <strong>Ctrl+C</strong> to stop.</p>
+    </div>
+
+    <div class="step">
+        <h2>Step C: Retry Wireshark Capture</h2>
+        <p>After accepting the SSH key, go back to Wireshark and start the packet capture again. The error should no longer appear.</p>
+    </div>
+
+    <p class="note">💡 <strong>Tip:</strong> Replace <code>&lt;GCP-IP&gt;</code> with the public IP address of your EVE-NG instance.</p>
+
+</body>
+</html>
