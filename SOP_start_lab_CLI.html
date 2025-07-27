@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>EVE-NG Lab Start SOP</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f4f4f4;
+      color: #333;
+    }
+    h1, h2 {
+      color: #00529b;
+    }
+    code {
+      background: #eaeaea;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+    pre {
+      background: #272822;
+      color: #f8f8f2;
+      padding: 10px;
+      border-radius: 5px;
+      overflow-x: auto;
+    }
+    table {
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    table, th, td {
+      border: 1px solid #999;
+      padding: 8px;
+    }
+    th {
+      background-color: #dceefc;
+    }
+    .note {
+      background-color: #ffffcc;
+      padding: 10px;
+      border-left: 5px solid #ffeb3b;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>✅ EVE-NG CLI Lab Start SOP</h1>
+
+  <h2>Start the Entire Lab</h2>
+  <p>Run this command:</p>
+  <pre>/opt/unetlab/wrappers/unl_wrapper -a start -T 0 -F /opt/unetlab/labs/ise.unl</pre>
+
+  <div class="note">
+    <strong>Explanation:</strong><br>
+    <code>-a start</code> → Start the lab<br>
+    <code>-T 0</code> → Tenant ID 0 (default)<br>
+    <code>-F</code> → Path to your lab file
+  </div>
+
+  <h2>💡 Output Example (if successful):</h2>
+  <pre>Starting node 1...
+Starting node 2...
+All nodes started successfully.</pre>
+
+  <h2>🛠 View Node IDs</h2>
+  <p>To see which nodes are available, run:</p>
+  <pre>cat /opt/unetlab/labs/ise.unl | grep "&lt;node"</pre>
+
+  <p>Example:</p>
+  <pre>
+&lt;node id="1" name="Node1" ... /&gt;
+&lt;node id="2" name="Winserver" ... /&gt;
+  </pre>
+
+  <h2>🔢 Summary of Node IDs</h2>
+  <table>
+    <tr><th>Node ID</th><th>Name</th></tr>
+    <tr><td>1</td><td>Node1</td></tr>
+    <tr><td>2</td><td>Winserver</td></tr>
+    <tr><td>3</td><td>ISE2</td></tr>
+    <tr><td>4</td><td>ISE1</td></tr>
+    <tr><td>5</td><td>vWLC</td></tr>
+    <tr><td>6</td><td>7206VXR</td></tr>
+    <tr><td>7</td><td>Core-SW</td></tr>
+    <tr><td>8</td><td>PC1</td></tr>
+    <tr><td>9</td><td>PC4</td></tr>
+    <tr><td>10</td><td>PC2</td></tr>
+    <tr><td>11</td><td>MGMT-PC</td></tr>
+    <tr><td>12</td><td>SW01</td></tr>
+    <tr><td>13</td><td>PC3</td></tr>
+    <tr><td>14</td><td>Tablet</td></tr>
+  </table>
+
+  <h2>✅ Start Selected Nodes</h2>
+  <p>Start only ISE1 and SW01:</p>
+  <pre>/opt/unetlab/wrappers/unl_wrapper -a start -T 0 -F /opt/unetlab/labs/ise.unl -D 4 -D 12</pre>
+
+  <p>Start only Tablet:</p>
+  <pre>/opt/unetlab/wrappers/unl_wrapper -a start -T 0 -F /opt/unetlab/labs/ise.unl -D 14</pre>
+
+</body>
+</html>
