@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>EVE-NG VM GCP Control Script</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 30px;
+      background-color: #f8f8f8;
+      color: #333;
+    }
+    h1, h2 {
+      color: #005792;
+    }
+    pre {
+      background-color: #272822;
+      color: #f8f8f2;
+      padding: 15px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      border-radius: 5px;
+    }
+    ul {
+      line-height: 1.7;
+    }
+    details {
+      margin-top: 20px;
+      margin-bottom: 30px;
+    }
+    summary {
+      font-weight: bold;
+      cursor: pointer;
+      color: #007ACC;
+    }
+    .code-title {
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+    footer {
+      margin-top: 40px;
+      font-size: 0.9em;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>📘 EVE-NG VM GCP Control Script</h1>
+
+  <p>This Python script is designed to manage an <strong>EVE-NG virtual machine hosted on Google Cloud Platform (GCP)</strong>. It automates VM operations, SSH access, and lab node control.</p>
+
+  <h2>✅ Key Features</h2>
+  <ul>
+    <li>Starts and stops the VM using <code>gcloud</code> CLI</li>
+    <li>Optionally creates a snapshot image after stopping the VM</li>
+    <li>Assigns IAM roles to a user with confirmation</li>
+    <li>Waits until the VM is in RUNNING state before proceeding</li>
+    <li>Retrieves external IP of the VM and opens the EVE-NG Web UI</li>
+    <li>Uses <code>plink</code> to SSH into VM and start specific node IDs</li>
+    <li>Clean command-line interface with emoji feedback</li>
+  </ul>
+
+  <h2>🛠 Optional Improvements</h2>
+  <ul>
+    <li>Add function to <strong>stop all nodes</strong> before stopping the VM</li>
+    <li>Validate paths to <code>gcloud</code> and <code>plink</code></li>
+    <li>Log all activities to a file</li>
+    <li>Enable CLI-only or headless operation</li>
+  </ul>
+
+  <details>
+    <summary>📂 View Full Python Script</summary>
+    <p class="code-title">Filename: <code>eveng_vm_control.py</code></p>
+    <pre>
+import subprocess
+import time
+import webbrowser
+import getpass
+
+# ----------- CONFIGURATION ------------
+PROJECT_ID = "decisive-lambda-460417-g3"
+ZONE = "us-central1-c"
+VM_NAME = "eveng-190725"
+GCLOUD_PATH = r"C:\Users\suraj\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd"
+PLINK_PATH = r"C:\Program Files\EVE-NG\plink.exe"
+LAB_PATH = "/opt/unetlab/labs/ise.unl"
+TENANT_ID = "0"
+NODE_IDS = ["1", "2", "4", "6", "7", "11"]  # Specific node IDs to start
+# ---------------------------------------
+
+def gcloud_command(command):
+    full_command = [GCLOUD_PATH] + command
+    result = subprocess.run(full_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if result.returncode != 0:
+        print(f"\n❌ Error: {' '.join(full_command)}\n{result.stderr}")
+        return None
+    return result.stdout.strip()
+
+def is_vm_running():
+    status = gcloud_command([
+        "compute", "instances", "describe",
+        VM_NAME,
+        "--zone", ZONE,
+        "--project", PROJECT_ID,
+        "--format=get(status)"
+    ])
+    print(f"📌 Current status of VM: {status}")
+    return status == "RUNNING"
+
+def start_vm():
+    print(f"\n🚀 Starting VM '{VM_NAME}'...")
+    output = gcloud_command([
+        "compute", "instances", "start",
+        VM_NAME,
+        "--zone", ZONE,
+        "--project", PROJECT_ID
+    ])
+    if output:
+        print("✅ VM start command issued successfully.\n")
+
+def stop_vm():
+    print(f"\n🛑 Stopping VM '{VM_NAME}'...")
+    output = gcloud_command([
+        "compute", "instances", "stop",
+        VM_NAME,
+        "--zone", ZONE,
+        "--project", PROJECT_ID
+    ])
+    if output:
+        print("✅ VM stopped successfully.\n")
+
+def assign_iam_roles():
+    confirm = input("🔐 Do you want to assign IAM roles to a user? (y/n): ").strip().lower()
+    if confirm != 'y':
+        print("❌ IAM role assignment skipped.\n")
+        return
+
+    user_email = input("📧 Enter the user's email (e.g., user@example.com): ").strip()
+    roles = [
+        "roles/compute.imageUser",
+        "roles/compute.instanceAdmin.beta",
+        "roles/editor"
+    ]
+
+    for role in roles:
+        print(f"➡️ Assigning role {role} to {user_email}...")
+        result = gcloud_command([
+            "projects", "add-iam-policy-binding", PROJECT_ID,
+            "--member", f"user:{user_email}",
+            "--role", role,
+            "--quiet"
+        ])
+        if result is not None:
+            print(f"✅ Role '{role}' assigned.")
+        else:
+            print(f"❌ Failed to assign role '{role}'.")
+    print("\n✅ All selected IAM roles processed.\n")
+
+def create_vm_image():
+    confirm = input(f"\n📸 Do you want to create a snapshot image of VM '{VM_NAME}' after shutdown? (y/n): ").strip().lower()
+    if confirm != 'y':
+        print("❌ Image creation skipped.")
+        return
+
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    image_name = f"{VM_NAME}-image-{timestamp}"
+
+    print(f"\n📸 Creating image '{image_name}' from stopped VM '{VM_NAME}'...")
+
+    result = gcloud_command([
+        "compute", "images", "create", image_name,
+        "--source-disk", VM_NAME,
+        "--source-disk-zone", ZONE,
+        "--project", PROJECT_ID,
+        "--labels", "type=eveng,image_created_by=script"
+    ])
+
+    if result:
+        print(f"✅ Image '{image_name}' created successfully.\n")
+        assign_iam_roles()
+    else:
+        print("❌ Failed to create image.\n")
+
+def wait_until_running():
+    print("⏳ Waiting for VM to be RUNNING...")
+    while True:
+        status = gcloud_command([
+            "compute", "instances", "describe",
+            VM_NAME,
+            "--zone", ZONE,
+            "--project", PROJECT_ID,
+            "--format=get(status)"
+        ])
+        print(f"📌 Current status: {status}")
+        if status == "RUNNING":
+            print("✅ VM is now RUNNING.\n")
+            break
+        time.sleep(5)
+
+def get_external_ip():
+    ip = gcloud_command([
+        "compute", "instances", "describe",
+        VM_NAME,
+        "--zone", ZONE,
+        "--project", PROJECT_ID,
+        "--format=get(networkInterfaces[0].accessConfigs[0].natIP)"
+    ])
+    print(f"🌐 External IP of EVE-NG VM: {ip}\n")
+    return ip
+
+def open_eveng_web(ip):
+    url = f"http://{ip}"
+    print(f"📣 Opening EVE-NG Web UI at: {url}")
+    webbrowser.open(url)
+
+def connect_via_plink(ip):
+    print(f"🔐 Connecting to EVE-NG via SSH: root@{ip}")
+    password = getpass.getpass("Enter password for root@{}: ".format(ip))
+
+    node_start_commands = " && ".join([
+        f"/opt/unetlab/wrappers/unl_wrapper -a start -T {TENANT_ID} -F {LAB_PATH} -D {node_id}"
+        for node_id in NODE_IDS
+    ])
+
+    ssh_command = f"{node_start_commands} && echo '✅ All specified nodes started.'"
+
+    command = [
+        PLINK_PATH,
+        "-ssh", f"root@{ip}",
+        "-pw", password,
+        ssh_command
+    ]
+
+    subprocess.run(command)
+
+def main():
+    print("\n🔧 Starting EVE-NG VM on Google Cloud...\n")
+    if is_vm_running():
+        print("✅ VM is already running.\n")
+        choice = input("❓ Do you want to stop the VM? (y/n): ").strip().lower()
+        if choice == 'y':
+            stop_vm()
+            create_vm_image()
+            print("✅ VM stopped. Exiting.")
+            return
+        else:
+            print("➡️ Continuing to connect.\n")
+    else:
+        start_vm()
+        wait_until_running()
+
+    ip = get_external_ip()
+    if ip:
+        open_eveng_web(ip)
+        connect_via_plink(ip)
+    else:
+        print("❌ Could not retrieve external IP. Exiting.")
+
+    print("\n✅ Script finished. Press Enter to close.")
+    input()
+
+if __name__ == "__main__":
+    main()
+
+    </pre>
+  </details>
+
+  <footer>Created by Suraj Joshi | Network Automation Utility | v1.0</footer>
+</body>
+</html>
