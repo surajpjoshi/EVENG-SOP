@@ -1,0 +1,74 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SOP: Copy EVE-NG QEMU Images Between Machines</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f9f9f9; }
+        h1 { color: #2c3e50; }
+        h2 { color: #34495e; }
+        code, pre {
+            background-color: #eee;
+            border-radius: 4px;
+            padding: 10px;
+            display: block;
+            margin: 10px 0;
+            white-space: pre-wrap;
+        }
+        .note {
+            background-color: #fefbd8;
+            padding: 10px;
+            border-left: 4px solid #f1c40f;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+
+<h1>SOP: Copy EVE-NG QEMU Images Between Machines</h1>
+
+<h2>Purpose</h2>
+<p>This SOP outlines the steps to copy all QEMU image folders from one EVE-NG machine to another using <strong>rsync</strong> over SSH and fix permissions afterward.</p>
+
+<h2>Prerequisites</h2>
+<ul>
+    <li>Both source and destination machines must have SSH access enabled.</li>
+    <li>You must have root access to both machines.</li>
+    <li>Ensure network connectivity between the machines.</li>
+</ul>
+
+<h2>Assumptions</h2>
+<ul>
+    <li><strong>Source EVE-NG IP:</strong> 35.184.84.155</li>
+    <li><strong>Destination EVE-NG IP:</strong> (current machine)</li>
+    <li><strong>Username:</strong> root</li>
+    <li><strong>QEMU image location:</strong> /opt/unetlab/addons/qemu/</li>
+</ul>
+
+<h2>Step 1: Copy QEMU Images Using rsync</h2>
+
+<pre><code>rsync -avz root@35.184.84.155:/opt/unetlab/addons/qemu/ /opt/unetlab/addons/qemu/</code></pre>
+
+<div class="note">
+    You will be prompted to enter the password for the <code>root</code> user on the source machine.
+</div>
+
+<h2>Step 2: Fix Permissions on Destination</h2>
+
+<pre><code>/opt/unetlab/wrappers/unl_wrapper -a fixpermissions</code></pre>
+
+<h2>Verification</h2>
+<ul>
+    <li>Login to the EVE-NG GUI.</li>
+    <li>Navigate to <code>Lab → Add Node</code>.</li>
+    <li>Ensure all the copied images (e.g., android-9.1-x64, ise-2.7.SPA) appear in the node list.</li>
+</ul>
+
+<h2>Notes</h2>
+<ul>
+    <li>Ensure disk space is sufficient on the destination machine.</li>
+    <li>If the transfer is interrupted, simply re-run the <code>rsync</code> command to resume.</li>
+</ul>
+
+</body>
+</html>
