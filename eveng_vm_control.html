@@ -73,29 +73,52 @@
     <summary>📂 View Full Python Script</summary>
     <p class="code-title">Filename: <code>eveng_vm_control.py</code></p>
     <pre>
-import subprocess
+
+
+      import subprocess
 import time
 import webbrowser
 import getpass
+import logging
 
 # ----------- CONFIGURATION ------------
-PROJECT_ID = "decisive-lambda-460417-g3"
-ZONE = "us-central1-c"
-VM_NAME = "eveng-190725"
+PROJECT_ID = "eveng-cloud123sj"
+ZONE = "us-central1-a"
+VM_NAME = "basic-ise-eveng"
 GCLOUD_PATH = r"C:\Users\suraj\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd"
 PLINK_PATH = r"C:\Program Files\EVE-NG\plink.exe"
 LAB_PATH = "/opt/unetlab/labs/ise.unl"
 TENANT_ID = "0"
-NODE_IDS = ["1", "2", "4", "6", "7", "11"]  # Specific node IDs to start
+NODE_IDS = ["1", "2", "3", "4", "5", "6"]
 # ---------------------------------------
 
-def gcloud_command(command):
-    full_command = [GCLOUD_PATH] + command
-    result = subprocess.run(full_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    if result.returncode != 0:
-        print(f"\n❌ Error: {' '.join(full_command)}\n{result.stderr}")
-        return None
-    return result.stdout.strip()
+# ----------- LOGGING SETUP ------------
+log_filename = f"eveng_log_{time.strftime('%Y%m%d-%H%M%S')}.log"
+logging.basicConfig(
+    filename=log_filename,
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+console = logging.StreamHandler()
+console.setLevel(logging.INFO)
+formatter = logging.Formatter("%(message)s")
+console.setFormatter(formatter)
+logging.getLogger().addHandler(console)
+# ---------------------------------------
+
+def gcloud_command(args):
+    try:
+        result = subprocess.run(
+            [GCLOUD_PATH] + args,
+            shell=True,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        return result.stdout.strip(), 0
+    except subprocess.CalledProcessError as e:
+        logging.error(f"gcloud error: {e.stderr.strip()}")
+        return None, e.returncode
 
 def is_vm_running():
     status = gcloud_command([
@@ -105,11 +128,11 @@ def is_vm_running():
         "--project", PROJECT_ID,
         "--format=get(status)"
     ])
-    print(f"📌 Current status of VM: {status}")
+    logging.info(f"📌 Current status of VM: {status}")
     return status == "RUNNING"
 
 def start_vm():
-    print(f"\n🚀 Starting VM '{VM_NAME}'...")
+    logging.info(f"🚀 Starting VM '{VM_NAME}'...")
     output = gcloud_command([
         "compute", "instances", "start",
         VM_NAME,
@@ -117,10 +140,10 @@ def start_vm():
         "--project", PROJECT_ID
     ])
     if output:
-        print("✅ VM start command issued successfully.\n")
+        logging.info("✅ VM start command issued successfully.")
 
 def stop_vm():
-    print(f"\n🛑 Stopping VM '{VM_NAME}'...")
+    logging.info(f"🛑 Stopping VM '{VM_NAME}'...")
     output = gcloud_command([
         "compute", "instances", "stop",
         VM_NAME,
@@ -128,45 +151,19 @@ def stop_vm():
         "--project", PROJECT_ID
     ])
     if output:
-        print("✅ VM stopped successfully.\n")
+        logging.info("✅ VM stopped successfully.")
 
-def assign_iam_roles():
-    confirm = input("🔐 Do you want to assign IAM roles to a user? (y/n): ").strip().lower()
-    if confirm != 'y':
-        print("❌ IAM role assignment skipped.\n")
-        return
-
-    user_email = input("📧 Enter the user's email (e.g., user@example.com): ").strip()
-    roles = [
-        "roles/compute.imageUser",
-        "roles/compute.instanceAdmin.beta",
-        "roles/editor"
-    ]
-
-    for role in roles:
-        print(f"➡️ Assigning role {role} to {user_email}...")
-        result = gcloud_command([
-            "projects", "add-iam-policy-binding", PROJECT_ID,
-            "--member", f"user:{user_email}",
-            "--role", role,
-            "--quiet"
-        ])
-        if result is not None:
-            print(f"✅ Role '{role}' assigned.")
-        else:
-            print(f"❌ Failed to assign role '{role}'.")
-    print("\n✅ All selected IAM roles processed.\n")
-
-def create_vm_image():
-    confirm = input(f"\n📸 Do you want to create a snapshot image of VM '{VM_NAME}' after shutdown? (y/n): ").strip().lower()
-    if confirm != 'y':
-        print("❌ Image creation skipped.")
-        return
+def create_vm_image(confirm=True):
+    if confirm:
+        choice = input(f"\n📸 Do you want to create a snapshot image of VM '{VM_NAME}' after shutdown? (y/n): ").strip().lower()
+        if choice != 'y':
+            logging.info("❌ Image creation skipped.")
+            return
 
     timestamp = time.strftime("%Y%m%d-%H%M%S")
     image_name = f"{VM_NAME}-image-{timestamp}"
 
-    print(f"\n📸 Creating image '{image_name}' from stopped VM '{VM_NAME}'...")
+    logging.info(f"📸 Creating image '{image_name}' from stopped VM '{VM_NAME}'...")
 
     result = gcloud_command([
         "compute", "images", "create", image_name,
@@ -177,13 +174,43 @@ def create_vm_image():
     ])
 
     if result:
-        print(f"✅ Image '{image_name}' created successfully.\n")
-        assign_iam_roles()
+        logging.info(f"✅ Image '{image_name}' created successfully.")
     else:
-        print("❌ Failed to create image.\n")
+        logging.error("❌ Failed to create image.")
+
+def assign_iam_roles(confirm=True):
+    if confirm:
+        choice = input("🔐 Do you want to assign IAM roles to a user? (y/n): ").strip().lower()
+        if choice != 'y':
+            logging.info("❌ IAM role assignment skipped.")
+            return
+
+    user_email = input("📧 Enter the user's email (e.g., user@example.com): ").strip()
+    if not user_email or "@" not in user_email:
+        logging.error("❌ Invalid email. Skipping IAM assignment.")
+        return
+
+    roles = [
+        "roles/compute.imageUser",
+        "roles/editor"
+    ]
+
+    for role in roles:
+        logging.info(f"➡️ Assigning role {role} to {user_email}...")
+        result = gcloud_command([
+            "projects", "add-iam-policy-binding", PROJECT_ID,
+            "--member", f"user:{user_email}",
+            "--role", role,
+            "--quiet"
+        ])
+        if result is not None:
+            logging.info(f"✅ Role '{role}' assigned.")
+        else:
+            logging.error(f"❌ Failed to assign role '{role}'.")
+    logging.info("✅ All selected IAM roles processed.")
 
 def wait_until_running():
-    print("⏳ Waiting for VM to be RUNNING...")
+    logging.info("⏳ Waiting for VM to be RUNNING...")
     while True:
         status = gcloud_command([
             "compute", "instances", "describe",
@@ -192,9 +219,9 @@ def wait_until_running():
             "--project", PROJECT_ID,
             "--format=get(status)"
         ])
-        print(f"📌 Current status: {status}")
+        logging.info(f"📌 Current status: {status}")
         if status == "RUNNING":
-            print("✅ VM is now RUNNING.\n")
+            logging.info("✅ VM is now RUNNING.")
             break
         time.sleep(5)
 
@@ -206,16 +233,17 @@ def get_external_ip():
         "--project", PROJECT_ID,
         "--format=get(networkInterfaces[0].accessConfigs[0].natIP)"
     ])
-    print(f"🌐 External IP of EVE-NG VM: {ip}\n")
+    if ip:
+        logging.info(f"🌐 External IP of EVE-NG VM: {ip}")
     return ip
 
 def open_eveng_web(ip):
     url = f"http://{ip}"
-    print(f"📣 Opening EVE-NG Web UI at: {url}")
+    logging.info(f"📣 Opening EVE-NG Web UI at: {url}")
     webbrowser.open(url)
 
 def connect_via_plink(ip):
-    print(f"🔐 Connecting to EVE-NG via SSH: root@{ip}")
+    logging.info(f"🔐 Connecting to EVE-NG via SSH: root@{ip}")
     password = getpass.getpass("Enter password for root@{}: ".format(ip))
 
     node_start_commands = " && ".join([
@@ -232,21 +260,90 @@ def connect_via_plink(ip):
         ssh_command
     ]
 
-    subprocess.run(command)
+    try:
+        subprocess.run(command, check=True)
+    except subprocess.CalledProcessError as e:
+        logging.error(f"❌ SSH connection or node start failed: {e}")
+
+def is_authenticated():
+    result = gcloud_command(["auth", "list", "--format=value(account)"])
+    return bool(result)
+
+def list_projects():
+    result = gcloud_command(["projects", "list", "--format=value(projectId)"])
+    if result:
+        projects = result.splitlines()
+        for i, proj in enumerate(projects, start=1):
+            print(f"{i}. {proj}")
+        return projects
+    else:
+        logging.error("❌ Could not retrieve project list.")
+        return []
+
+def choose_project(projects):
+    while True:
+        choice = input("🔢 Select a project number from the list above: ").strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(projects):
+            return projects[int(choice) - 1]
+        else:
+            print("❌ Invalid choice. Try again.")
+
+def authenticate_user():
+    username = input("👤 Enter your Google Cloud username/email: ").strip()
+    subprocess.run([GCLOUD_PATH, "auth", "login", "--brief"], shell=True)
+    logging.info("✅ Auth process initiated. Continue in browser...")
 
 def main():
-    print("\n🔧 Starting EVE-NG VM on Google Cloud...\n")
-    if is_vm_running():
-        print("✅ VM is already running.\n")
-        choice = input("❓ Do you want to stop the VM? (y/n): ").strip().lower()
-        if choice == 'y':
+    logging.info("\n🔧 Checking if user is authenticated with Google Cloud...\n")
+
+    if not is_authenticated():
+        logging.info("🔐 No authenticated user found.")
+        authenticate_user()
+    else:
+        logging.info("✅ User is already authenticated.")
+
+    logging.info("\n📋 Fetching available GCP projects...\n")
+    projects = list_projects()
+    if not projects:
+        logging.error("❌ No projects found. Exiting.")
+        return
+
+    selected_project = choose_project(projects)
+    output, code = gcloud_command(["config", "set", "project", selected_project])
+    if code == 0:
+       global PROJECT_ID
+       PROJECT_ID = selected_project
+       logging.info(f"✅ Project set to: {PROJECT_ID}")
+    else:
+       logging.error("❌ Failed to set project. Exiting.")
+    return
+
+    logging.info("\n🔧 Checking EVE-NG VM status on Google Cloud...\n")
+
+    vm_running = is_vm_running()
+
+    if vm_running:
+        logging.info("✅ VM is already RUNNING.")
+        stop_choice = input("❓ Do you want to stop the VM? (y/n): ").strip().lower()
+        if stop_choice == 'y':
+            snapshot_choice = input(f"📸 Do you want to create a snapshot image of VM '{VM_NAME}' after shutdown? (y/n): ").strip().lower()
+            iam_choice = input("🔐 Do you want to assign IAM roles to a user? (y/n): ").strip().lower()
+
             stop_vm()
-            create_vm_image()
-            print("✅ VM stopped. Exiting.")
+
+            if snapshot_choice == 'y':
+                create_vm_image(confirm=False)
+
+            if iam_choice == 'y':
+                assign_iam_roles(confirm=False)
+
+            logging.info("✅ All selected actions completed. Exiting.")
             return
         else:
-            print("➡️ Continuing to connect.\n")
+            logging.info("➡️ Continuing to use the running VM.")
     else:
+        logging.info("📌 VM is currently STOPPED (TERMINATED).")
+        logging.info(f"🚀 Starting VM '{VM_NAME}'...")
         start_vm()
         wait_until_running()
 
@@ -255,13 +352,15 @@ def main():
         open_eveng_web(ip)
         connect_via_plink(ip)
     else:
-        print("❌ Could not retrieve external IP. Exiting.")
+        logging.error("❌ Could not retrieve external IP. Exiting.")
 
-    print("\n✅ Script finished. Press Enter to close.")
+    logging.info("\n✅ Script finished. Press Enter to close.")
     input()
 
 if __name__ == "__main__":
     main()
+
+
 
     </pre>
   </details>
@@ -269,3 +368,4 @@ if __name__ == "__main__":
   <footer>Created by Suraj Joshi | Network Automation Utility | v1.0</footer>
 </body>
 </html>
+
